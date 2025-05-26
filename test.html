@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>1~999 숫자 찾기</title>
+  <style>
+    body {
+      font-family: sans-serif;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 20px;
+    }
+    #condition {
+      margin-bottom: 10px;
+      font-size: 1.2em;
+    }
+    #timer, #score, #bestScore {
+      margin-bottom: 10px;
+      font-size: 1.1em;
+    }
+    #grid {
+      display: grid;
+      grid-template-columns: repeat(10, 1fr);
+      gap: 6px;
+      width: 100%;
+      max-width: 600px;
+      margin-bottom: 20px;
+    }
+    .cell {
+      padding: 12px 0;
+      text-align: center;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      background: #f9f9f9;
+      cursor: pointer;
+      user-select: none;
+      transition: background 0.2s, color 0.2s;
+    }
+    .cell.correct {
+      background: #c8e6c9;
+      color: #256029;
+      cursor: default;
+    }
+    .cell.wrong {
+      background: #ffcdd2;
+      color: #b71c1c;
+      cursor: default;
+    }
+    #finalMessage {
+      font-size: 1.3em;
+      margin-top: 20px;
+    }
+  </style>
+</head>
+<body>
+  <div id="condition">조건: …</div>
+  <div id="timer">남은 시간: <span id="time">60</span>초</div>
+  <div id="score">현재 점수: 0</div>
+  <div id="bestScore">최고 기록: 0</div>
+  <div id="grid"></div>
+  <div id="finalMessage"></div>
+
+  <script>
+    // 1) 조건 함수 목록과 설명 (총 20개)
+    const conditions = [
+      { test: n => n % 2 === 0, desc: '짝수' },
+      { test: n => n % 3 === 0, desc: '3의 배수' },
+      { test: n => n % 5 === 0, desc: '5의 배수' },
+      { test: n => (''+n).includes('7'), desc: '7 포함' },
+      { test: n => (''+n).split('').map(Number).reduce((a,b)=>a+b,0) === 10, desc: '숫자 합이 10' },
+      { test: n => n > 500, desc: '500 초과' },
+      { test: n => n < 250, desc: '250 미만' },
+      { test: n => String(n) === String(n).split('').reverse().join(''), desc: '회문수' },
+      { test: n => Math.sqrt(n)%1 === 0, desc: '정수 제곱수' },
+      { test: n => n % 10 === 5, desc: '끝자리 5' },
+      { test: n => n % 11 === 0, desc: '11의 배수' },
+      { test: n => (''+n).split('').filter(d=>d==='3').length >=1, desc: '3이 하나 이상' },
+      { test: n => n % (n%10 + 1) === 0, desc: '끝자리+1로 나누어짐' },
+      { test: n => (''+n).length === 3, desc: '3자리 숫자' },
+      { test: n => n === [...String(n)].map(Number).sort((a,b)=>a-b).join('')*1, desc: '오름차순' },
+      { test: n => [...Set(String(n))].length === 1, desc: '모두 같은 숫자' },
+      { test: n => n % 7 === 0, desc: '7의 배수' },
+      { test: n => (''+n).endsWith('0'), desc: '0으로 끝남' },
+      { test: n => [...String(n)].map(Number).reduce((a,b)=>a*b,1) > 50, desc: '자리 곱 >50' },
+      { test: n => n % 9 === 0, desc: '9의 배수' }
+    ];
+
+    let currentCondIndex = 0;
+    let score = 0;
+    let timeLeft = 60;
+    let timerId;
+
+    // 로컬스토리지에서 최고 기록 불러오기
+    const bestScore = localStorage.getItem('bestScore') || 0;
+    document.getElementById('bestScore').textContent = `최고 기록: ${bestScore}`;
+
+    // 숫자 샘플링
+    function sampleNumbers(count, max) {
+      const set = new Set();
+      while (set.size < count) set.add(Math.floor(Math.random() * max) + 1);
+      return [...set];
+    }
+
+    // 그리드 렌더
+    function renderGrid() {
+      const gridEl = document.getElementById('grid');
+      gridEl.innerHTML = '';
+      sampleNumbers(50, 999).forEach(n => {
+        const cell = document.createElement('div');
+        cell.className = 'cell';
+        cell.textContent = n;
+        cell.addEventListener('click', () => onCellClick(cell, n));
+        gridEl.appendChild(cell);
+      });
+    }
+
+    // 셀 클릭
+    function onCellClick(cellEl, num) {
+      if (cellEl.classList.contains('correct') || cellEl.classList.contains('wrong') || timeLeft<=0) return;
+      const cond = conditions[currentCondIndex];
+      if (cond.test(num)) {
+        cellEl.textContent = 'O';
+        cellEl.classList.add('correct');
+        score++;
+        updateScore();
+        if (score % 10 === 0) setTimeout(showCondition, 300);
+      } else {
+        cellEl.textContent = 'X';
+        cellEl.classList.add('wrong');
+      }
+    }
+
+    // 점수 업데이트
+    function updateScore() {
+      document.getElementById('score').textContent = `현재 점수: ${score}`;
+    }
+
+    // 조건 및 그리드 초기화
+    function showCondition() {
+      currentCondIndex = Math.floor(Math.random() * conditions.length);
+      document.getElementById('condition').textContent = `조건: ${conditions[currentCondIndex].desc}`;
+      renderGrid();
+    }
+
+    // 타이머 시작
+    function startTimer() {
+      timerId = setInterval(() => {
+        if (timeLeft <= 0) return endGame();
+        timeLeft--;
+        document.getElementById('time').textContent = timeLeft;
+      }, 1000);
+    }
+
+    // 게임 종료
+    function endGame() {
+      clearInterval(timerId);
+      document.getElementById('finalMessage').textContent =
+        `시간 종료! 최종 점수: ${score}`;
+      // 최고 기록 갱신
+      const prev = localStorage.getItem('bestScore') || 0;
+      if (score > prev) {
+        localStorage.setItem('bestScore', score);
+        document.getElementById('bestScore').textContent = `최고 기록: ${score}`;
+        document.getElementById('finalMessage').textContent += ' 🎉 새로운 기록!';
+      }
+    }
+
+    // 초기화
+    window.addEventListener('DOMContentLoaded', () => {
+      showCondition();
+      startTimer();
+    });
+  </script>
+</body>
+</html>
